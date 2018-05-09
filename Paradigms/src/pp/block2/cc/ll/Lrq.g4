@@ -10,4 +10,4 @@ C : 'c' ;
 WS : [ \t\n\r] -> skip;
 
 // everything else is a typo
-TYPO : (~(' ' | '\t' | '\n' | '\r'))+;
+TYPO : ~(' ' | '\t' | '\n' | '\r' | 'a' | 'b' | 'c');

@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
@@ -28,10 +29,9 @@ public class GenericLLParser implements Parser {
 	/** Token list of the currently parsed input. */
 	private List<? extends Token> tokens;
 
-
 	public GenericLLParser(Grammar g) {
 		this.g = g;
-		this.calc = null; // TODO Instantiate your LLCalc-implementation
+		this.calc = new LLCalcImpl(g);
 	}
 
 	@Override
@@ -40,43 +40,65 @@ public class GenericLLParser implements Parser {
 		this.index = 0;
 		return parse(this.g.getStart());
 	}
-	
-	/** Parses the start of the token stream according to a given
-	 * symbol. If it is a terminal, that should be the first token;
-	 * otherwise, it is a non-terminal that should be expanded 
-	 * according to the next token in the token stream, using the
-	 * FIRST+-lookup table and recursively calling {@link #parse(Rule)}
-	 * @param symb the symbol according to which the token stream 
-	 * should be parsed
-	 * @return the sub-AST resulting from the parsing of symb;
-	 * or null if the symbol expands to the empty string
-	 * @throws ParseException if the symbol cannot be parsed
-	 * because the token stream does not contain the expected symbols
+
+	/**
+	 * Parses the start of the token stream according to a given symbol. If it is a
+	 * terminal, that should be the first token; otherwise, it is a non-terminal
+	 * that should be expanded according to the next token in the token stream,
+	 * using the FIRST+-lookup table and recursively calling {@link #parse(Rule)}
+	 * 
+	 * @param symb
+	 *            the symbol according to which the token stream should be parsed
+	 * @return the sub-AST resulting from the parsing of symb; or null if the symbol
+	 *         expands to the empty string
+	 * @throws ParseException
+	 *             if the symbol cannot be parsed because the token stream does not
+	 *             contain the expected symbols
 	 */
 	private AST parse(Symbol symb) throws ParseException {
-		return null; // TODO fill in
+		try {
+			AST ast;
+			if (symb instanceof Term) {
+				ast = new AST((Term) symb, tokens.get(index));
+				next();
+				return ast;
+			} else {
+				return parse(lookup((NonTerm) symb));
+			}
+		} catch (IndexOutOfBoundsException e) { 
+			throw new ParseException();
+		} catch (AssertionError e) {
+			throw new ParseException();
+		}
 	}
 
-	/** Parses the start of the token stream according to a given
-	 * rule, recursively calling {@link #parse(Symbol)} to process
-	 * the RHS.
-	 * @return the sub-AST resulting from the parsing of the rule.
-	 * The top node is the node for the LHS of the rule, its direct
-	 * children correspond to the symbols of the rule's RHS.
-	 * @throws ParseException if the symbol cannot be parsed
-	 * because the token stream does not contain the expected symbols
+	/**
+	 * Parses the start of the token stream according to a given rule, recursively
+	 * calling {@link #parse(Symbol)} to process the RHS.
+	 * 
+	 * @return the sub-AST resulting from the parsing of the rule. The top node is
+	 *         the node for the LHS of the rule, its direct children correspond to
+	 *         the symbols of the rule's RHS.
+	 * @throws ParseException
+	 *             if the symbol cannot be parsed because the token stream does not
+	 *             contain the expected symbols
 	 */
 	private AST parse(Rule rule) throws ParseException {
-		return null; // TODO fill in
+		AST ast = new AST(rule.getLHS());
+		for (Symbol s : rule.getRHS()) {
+			ast.addChild(parse(s));
+		}
+		return ast;
 	}
 
-	/** Uses the lookup table to look up the rule to which
-	 * a given nonterminal should be expanded.
-	 * The next rule is determined by the next token, using the
+	/**
+	 * Uses the lookup table to look up the rule to which a given nonterminal should
+	 * be expanded. The next rule is determined by the next token, using the
 	 * FIRST+-set of the nonterminal.
-	 * @throws ParseException if the lookup table does not 
-	 * contain a rule for the nonterminal in combination with
-	 * the first token in the token stream.
+	 * 
+	 * @throws ParseException
+	 *             if the lookup table does not contain a rule for the nonterminal
+	 *             in combination with the first token in the token stream.
 	 */
 	private Rule lookup(NonTerm nt) throws ParseException {
 		Rule result;
@@ -90,11 +112,8 @@ public class GenericLLParser implements Parser {
 			Term term = this.g.getTerminal(nextToken.getType());
 			result = getLL1Table().get(nt).get(term);
 			if (result == null) {
-				throw new ParseException(String.format(
-						"Line %d:%d - no rule for '%s' on token '%s'",
-						nextToken.getLine(), 
-						nextToken.getCharPositionInLine(),
-						nt.getName(), nextToken));
+				throw new ParseException(String.format("Line %d:%d - no rule for '%s' on token '%s'",
+						nextToken.getLine(), nextToken.getCharPositionInLine(), nt.getName(), nextToken));
 			}
 		}
 		return result;
@@ -130,6 +149,24 @@ public class GenericLLParser implements Parser {
 
 	/** Constructs the {@link #ll1Table}. */
 	private Map<NonTerm, Map<Term, Rule>> calcLL1Table() {
-		return null; // TODO fill in
+		Map<NonTerm, Map<Term, Rule>> result = new HashMap<>();
+
+		for (NonTerm a : g.getNonterminals()) {
+			for (Term w : g.getTerminals()) {
+				Map<Term, Rule> map = new HashMap<>();
+				map.put(w, null);
+				result.put(a, map);
+			}
+			for (Rule p : g.getRules(a)) {
+				Map<Rule, Set<Term>> firstp = calc.getFirstp();
+				for (Term w : firstp.get(p)) {
+					result.get(a).put(w, p);
+				}
+				if (firstp.get(p).contains(Symbol.EOF)) {
+					result.get(a).put(Symbol.EOF, p);
+				}
+			}
+		}
+		return result;
 	}
 }

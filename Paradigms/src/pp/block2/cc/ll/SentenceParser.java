@@ -28,6 +28,7 @@ public class SentenceParser implements Parser {
 	@Override
 	public AST parse(Lexer lexer) throws ParseException {
 		this.tokens = lexer.getAllTokens();
+		System.out.println(tokens);
 		this.index = 0;
 		return parseSentence();
 	}
@@ -134,6 +135,7 @@ public class SentenceParser implements Parser {
 	private static final NonTerm MOD = new NonTerm("Modifier");
 
 	public static void main(String[] args) {
+		System.out.println(args);
 		if (args.length == 0) {
 			System.err.println("Usage: [text]+");
 		} else {
